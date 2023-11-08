@@ -138,25 +138,25 @@ def Win (Player, Board):
 	#-------------------------------------------------------------------------
 	# Determines if Player has won, by finding '3 in a row'.
 	#-------------------------------------------------------------------------
-    # check for 3 in a row horizontally
+    # Win if three are adjacent in a row
     for row in range(1, BoardRows):
         for col in range(1, BoardCols-2):
             if Board[row][col] == Board[row][col+1] == Board[row][col+2] == Player:
                 return True
 
-    # check for 3 in a row vertically
+    # Win if three are adjacent in a column
     for col in range(1, BoardCols):
         for row in range(1, BoardRows-2):
             if Board[row][col] == Board[row+1][col] == Board[row+2][col] == Player:
                 return True    
             
-    # Check diagonals (from top-left to bottom-right)
+    # Win if three are adjacent diagonally from left to right
     for row in range(1, BoardRows-2):
         for col in range(1, BoardCols-2):
             if Board[row][col] == Board[row + 1][col + 1] == Board[row + 2][col + 2] == Player:
                 return True
             
-    # Check diagonals (from bottom-left to top-right)
+    # Win if three are adjacent diagonally from right to left
     for row in range(3, BoardRows):
         for col in range(1, BoardCols-2):
             if Board[row][col] == Board[row - 1][col + 1] == Board[row - 2][col + 2] == Player:
@@ -174,7 +174,7 @@ def GetComputerMove (Player, Board):
 # For this demo, a move is chosen at random from the list of legal moves.
 # You need to write your own code to get the best computer move.
 #-------------------------------------------------------------------------
-
+	# Calls the min or max depending which piece the player is
 	if Player == x:
 		_, move = MinValue(Player, Board, -infinity, infinity, depth = 0, useAB = alphaBeta)
 	elif Player == o:
@@ -182,19 +182,25 @@ def GetComputerMove (Player, Board):
 	return move
 
 
-
+# The max value for Minimax and where the alpha is determined in Alpha Beta
 def MaxValue(Player, Board, alpha, beta, depth, useAB):
+    # Reinitializing numBoards and furthest_depth so they can be modified
     global numBoards, furthest_depth
     furthest_depth = depth
     move = None
     
+	# Stops searching if a terminal node or the MaxDepth is reached
+	# Returns scores for each board to determin which is more optimal
     if Win(Player, Board) or depth == MaxDepth:
         return (klofthus_h(Board, Player), None)
     
-    v = -infinity * 10
+    v = -infinity * 10	# Multiplying by 10 to ensure v is the smallest or largest value used
     
+	# Searches possible moves
     for a in GetMoves(Player, Board):
+        # Increments numBoards for each state viewed
         numBoards += 1
+        # Creates a copy of the board so it doesn't accidently apply a move to early
         newBoard = copy.deepcopy(Board)
         v2, _ = MinValue(Player * -1, ApplyMove(newBoard, a), alpha, beta, depth + 1, useAB)
         if v2 > v:
@@ -205,20 +211,27 @@ def MaxValue(Player, Board, alpha, beta, depth, useAB):
     return v, move
 
 
-
+# The min value for Minimax and where the beta is determined in Alpha Beta
 def MinValue(Player, Board, alpha, beta, depth, useAB):
+    # Reinitializing numBoards and furthest_depth so they can be modified
     global numBoards, furthest_depth
     furthest_depth = depth
     move = None
     
+	# Stops searching if a terminal node or the MaxDepth is reached
+	# Returns 
     if Win(Player, Board) or depth == MaxDepth:
         return (klofthus_h(Board, Player), None)
     
     v = infinity * 10
     
+	# Searches possible moves
     for a in GetMoves(Player, Board):
+        # Increments numBoards for each state viewed
         numBoards += 1
+        # Creates a copy of the board so it doesn't accidently apply a move to early
         newBoard = copy.deepcopy(Board)
+        # Uses copy of board to search and adds board to array attempting to stop cycles
         actionBoard = ApplyMove(newBoard, a)
         if actionBoard in oldBoards:
             continue
@@ -231,7 +244,9 @@ def MinValue(Player, Board, alpha, beta, depth, useAB):
     return v, move
 
 
-
+# Heuristic that gives points if pieces are closer together and more points if
+# adjacent, and subtracts points of opponents pieces are closer together and
+# subtracts a lot of points if opponents pieces are adjacent.
 def klofthus_h(Board, Player):
     score = 0
     # Bonus and penalty values
@@ -343,7 +358,6 @@ if __name__ == "__main__":
 	MaxDepth = 7
 	Board = [[0 for col in range(BoardCols+1)] for row in range(BoardRows+1)]
 
- 
 	numBoards = 0		# Counts the number of boards (states) evaluated
 	furthest_depth = 0	# Tracks the furthest depth reached			
 	oldBoards=[]		# List of old boards to prevent cycles
@@ -364,14 +378,15 @@ if __name__ == "__main__":
 	alphaBeta = difficulty()	# Calls the function to allow the user to select difficulty
 	print("Alpha Beta Pruning: ", alphaBeta) # Difficulty is whether or not to use alpha beta pruning
 
+	"""
 	MoveList = GetMoves(x,Board)
 	print("\nList of Possible 'X' Moves: ", MoveList)
 	MoveList = GetMoves(o,Board)
 	print("List of Possible 'O' Moves: ", MoveList)
-	
+	"""
 
 	while True:
-		# Check for a win
+		# Check for a win, if there is a win breaks loop to stop game
 		if Win(x, Board):
 			print("Player X wins!")
 			break
@@ -388,26 +403,35 @@ if __name__ == "__main__":
 			MoveList_O = GetMoves(o,Board)
 			print("\nList of Possible 'X' Moves: ", MoveList_X)
 			print("\nList of Possible 'O' Moves: ", MoveList_O)
+                  
 			# Gets the human move and applies it to the board
 			Move = GetHumanMove(turn,Board)
 			Board = ApplyMove(Board,Move)
+                  
 			# Adds the board to the list of old boards, and then shows the board
 			oldBoards.append(Board)
 			ShowBoard(Board)
+                  
 			# Multiplies turn by -1 to flip the turn
 			turn *= -1
 
+		# Computer turn
 		else:
+                  
 			# Times how long it takes the computer to make a decision
 			start_timer = time.time()
 			Move = GetComputerMove(turn,Board)
 			end_timer = time.time()
+                  
 			# Applies the move to the board
 			Board = ApplyMove(Board,Move)
+                  
 			# Adds the board to the list of old boards, and then shows the board
 			oldBoards.append(Board)
 			ShowBoard(Board)
+                  
 			# Prints the information related to the computer's decision
 			print("Number of States Evaluated: ", numBoards, "\nUsing Alpha Beta: ", alphaBeta, "\nTime to compute: ", round(end_timer - start_timer, 4), "s", "\nDepth: ", furthest_depth)
+			
 			# Multiplies turn by -1 to flip the turn
 			turn *= -1
