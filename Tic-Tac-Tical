@@ -1,0 +1,413 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+"""
+COSC 4550-COSC5550 - Introduction to AI - Homework 4
+"""
+#-------------------------------------------------------------------------
+# Tac-Tac-Tical
+# This program is designed to play Tic-Tac-Tical, using lookahead and board heuristics.
+# It will allow the user to play a game against the machine, or allow the machine
+# to play against itself for purposes of learning to improve its play.  All 'learning'
+# code has been removed from this program.
+#
+# Tic-Tac-Tical is a 2-player game played on a grid. Each player has the same number
+# of tokens distributed on the grid in an initial configuration.  On each turn, a player
+# may move one of his/her tokens one unit either horizontally or vertically (not
+# diagonally) into an unoccupied square.  The objective is to be the first player to get
+# three tokens in a row, either horizontally, vertically, or diagonally.
+#
+# The board is represented by a matrix with extra rows and columns forming a
+# boundary to the playing grid. Squares in the playing grid can be occupied by
+# either 'X', 'O', or 'Empty' spaces.  The extra elements are filled with 'Out of Bounds'
+# squares, which makes some of the computations simpler.
+#-------------------------------------------------------------------------
+
+from __future__ import print_function
+import random
+from random import randrange
+import copy
+import time
+
+
+def GetMoves (Player, Board):
+#-------------------------------------------------------------------------
+# Determines all legal moves for Player with current Board,
+# and returns them in MoveList.
+#-------------------------------------------------------------------------
+
+	MoveList = []
+	for i in range(1,NumRows+1):
+		for j in range(1,NumCols+1):
+			if Board[i][j] == Player:
+			#-------------------------------------------------------------
+			#  Check move directions (m,n) = (-1,0), (0,-1), (0,1), (1,0)
+			#-------------------------------------------------------------
+				for m in range(-1,2):
+					for n in range(-1,2):
+						if abs(m) != abs(n):
+							if Board[i + m][j + n] == Empty:
+								MoveList.append([i, j, i+m, j+n])
+
+	return MoveList
+
+
+def GetHumanMove (Player, Board):
+#-------------------------------------------------------------------------
+# If the opponent is a human, the user is prompted to input a legal move.
+# Determine the set of all legal moves, then check input move against it.
+#-------------------------------------------------------------------------
+	MoveList = GetMoves(Player, Board)
+	Move = None
+
+	while(True):
+		FromRow, FromCol, ToRow, ToCol = map(int, \
+			input('Input your move (FromRow, FromCol, ToRow, ToCol): ').split(' '))
+
+		ValidMove = False
+		if not ValidMove:
+			for move in MoveList:
+				if move == [FromRow, FromCol, ToRow, ToCol]:
+					ValidMove = True
+					Move = move
+
+		if ValidMove:
+			break
+
+		print('Invalid move.  ')
+
+	return Move
+
+
+def ApplyMove (Board, Move):
+#-------------------------------------------------------------------------
+# Perform the given move, and update Board.
+#-------------------------------------------------------------------------
+
+    FromRow, FromCol, ToRow, ToCol = Move
+    newBoard = copy.deepcopy(Board)
+    Board[ToRow][ToCol] = Board[FromRow][FromCol]
+    Board[FromRow][FromCol] = 0
+    return Board
+
+
+def InitBoard (Board):
+#-------------------------------------------------------------------------
+# Initialize the game board.
+#-------------------------------------------------------------------------
+
+	for i in range(0,BoardRows+1):
+		for j in range(0,BoardCols+1):
+			Board[i][j] = OutOfBounds
+
+	for i in range(1,NumRows+1):
+		for j in range(1,NumCols+1):
+			Board[i][j] = Empty
+
+	for j in range(1,NumCols+1):
+		if odd(j):
+			Board[1][j] = x
+			Board[NumRows][j] = o
+		else:
+			Board[1][j] = o
+			Board[NumRows][j] = x
+
+
+def odd(n):
+	return n%2==1
+
+def ShowBoard (Board):
+	print("")
+	row_divider = "+" + "-"*(NumCols*4-1) + "+"
+	print(row_divider)
+
+	for i in range(1,NumRows+1):
+		for j in range(1,NumCols+1):
+			if Board[i][j] == x:
+				print('| X ',end="")
+			elif Board[i][j] == o:
+				print('| O ',end="")
+			elif Board[i][j] == Empty:
+				print('|   ',end="")
+		print('|')
+		print(row_divider)
+
+	print("")
+
+
+def Win (Player, Board):
+	#-------------------------------------------------------------------------
+	# Determines if Player has won, by finding '3 in a row'.
+	#-------------------------------------------------------------------------
+    # check for 3 in a row horizontally
+    for row in range(1, BoardRows):
+        for col in range(1, BoardCols-2):
+            if Board[row][col] == Board[row][col+1] == Board[row][col+2] == Player:
+                return True
+
+    # check for 3 in a row vertically
+    for col in range(1, BoardCols):
+        for row in range(1, BoardRows-2):
+            if Board[row][col] == Board[row+1][col] == Board[row+2][col] == Player:
+                return True    
+            
+    # Check diagonals (from top-left to bottom-right)
+    for row in range(1, BoardRows-2):
+        for col in range(1, BoardCols-2):
+            if Board[row][col] == Board[row + 1][col + 1] == Board[row + 2][col + 2] == Player:
+                return True
+            
+    # Check diagonals (from bottom-left to top-right)
+    for row in range(3, BoardRows):
+        for col in range(1, BoardCols-2):
+            if Board[row][col] == Board[row - 1][col + 1] == Board[row - 2][col + 2] == Player:
+                return True
+
+    return False 
+
+
+
+
+def GetComputerMove (Player, Board):
+#-------------------------------------------------------------------------
+# If the opponent is a computer, use artificial intelligence to select
+# the best move.
+# For this demo, a move is chosen at random from the list of legal moves.
+# You need to write your own code to get the best computer move.
+#-------------------------------------------------------------------------
+
+	if Player == x:
+		_, move = MinValue(Player, Board, -infinity, infinity, depth = 0, useAB = alphaBeta)
+	elif Player == o:
+		_, move = MaxValue(Player, Board, -infinity, infinity, depth = 0, useAB = alphaBeta)
+	return move
+
+
+
+def MaxValue(Player, Board, alpha, beta, depth, useAB):
+    global numBoards, furthest_depth
+    furthest_depth = depth
+    move = None
+    
+    if Win(Player, Board) or depth == MaxDepth:
+        return (klofthus_h(Board, Player), None)
+    
+    v = -infinity * 10
+    
+    for a in GetMoves(Player, Board):
+        numBoards += 1
+        newBoard = copy.deepcopy(Board)
+        v2, _ = MinValue(Player * -1, ApplyMove(newBoard, a), alpha, beta, depth + 1, useAB)
+        if v2 > v:
+            v, move = v2, a
+            alpha = max(alpha, v)
+        if useAB and v >= beta:
+            return v, move
+    return v, move
+
+
+
+def MinValue(Player, Board, alpha, beta, depth, useAB):
+    global numBoards, furthest_depth
+    furthest_depth = depth
+    move = None
+    
+    if Win(Player, Board) or depth == MaxDepth:
+        return (klofthus_h(Board, Player), None)
+    
+    v = infinity * 10
+    
+    for a in GetMoves(Player, Board):
+        numBoards += 1
+        newBoard = copy.deepcopy(Board)
+        actionBoard = ApplyMove(newBoard, a)
+        if actionBoard in oldBoards:
+            continue
+        v2, _ = MaxValue(Player * -1, actionBoard, alpha, beta, depth + 1, useAB)
+        if v2 < v:
+            v, move = v2, a
+            beta = min(beta, v)
+        if useAB and v <= alpha:
+            return v, move
+    return v, move
+
+
+
+def klofthus_h(Board, Player):
+    score = 0
+    # Bonus and penalty values
+    # With more time I could have improved these values to make the AI better
+    center_bonus = 100  
+    proximity_bonus = 500  
+    adjacency_bonus = 1000
+    opponent_proximity_penalty = 500 
+    opponent_adjacency_penalty = 1500
+
+    # Give a high score if the AI wins
+    if Win(Player, Board):
+        score += infinity
+
+    # Give a lower score if the opponent wins
+    elif Win(Player * -1, Board):
+        score -= infinity
+
+    # Give a bonus for controlling the center,
+    # I had a problem with the AI getting in a loop in the top left corner, 
+    # This was to help prevent that
+    center_i, center_j = len(Board) // 2, len(Board[0]) // 2
+    if Board[center_i][center_j] == Player:
+        score += center_bonus
+
+	# Gives points when a piece is adjacent to another piece
+    for i in range(len(Board)):
+        for j in range(len(Board[0])):
+            if Board[i][j] == Player:
+                for dx, dy in [(-1, 0), (1, 0), (0, -1), (0, 1), (-1, -1), (-1, 1), (1, -1), (1, 1)]:
+                    new_i, new_j = i + dx, j + dy
+                    if 0 <= new_i < len(Board) and 0 <= new_j < len(Board[0]) and Board[new_i][new_j] == Player:
+                        score += adjacency_bonus
+    
+    # Subtract points when an opponent's piece is adjacent to another opponent's piece
+    for i in range(len(Board)):
+        for j in range(len(Board[0])):
+            if Board[i][j] == Player * -1:
+                for dx, dy in [(-1, 0), (1, 0), (0, -1), (0, 1), (-1, -1), (-1, 1), (1, -1), (1, 1)]:
+                    new_i, new_j = i + dx, j + dy
+                    if 0 <= new_i < len(Board) and 0 <= new_j < len(Board[0]) and Board[new_i][new_j] == Player * -1:
+                        score -= opponent_adjacency_penalty
+
+    # Give a bonus for each pair of pieces that are close together
+    positions = [(i, j) for i in range(len(Board)) for j in range(len(Board[0])) if Board[i][j] == Player]
+    for i in range(len(positions)):
+        for j in range(i+1, len(positions)):
+            distance = abs(positions[i][0] - positions[j][0]) + abs(positions[i][1] - positions[j][1])
+            score += proximity_bonus / distance  # The closer the pieces, the higher the score
+
+    # Subtract points for each pair of opponent's pieces that are close together
+    opponent_positions = [(i, j) for i in range(len(Board)) for j in range(len(Board[0])) if Board[i][j] == Player * -1]
+    for i in range(len(opponent_positions)):
+        for j in range(i+1, len(opponent_positions)):
+            distance = abs(opponent_positions[i][0] - opponent_positions[j][0]) + abs(opponent_positions[i][1] - opponent_positions[j][1])
+            score -= opponent_proximity_penalty / distance  # The closer the opponent's pieces, the lower the score
+
+    return score
+
+
+# Asks the user if they want to be X or O, 
+# X always goes first, but computer and player can be either X or O
+def player_X_or_O():
+    while True:
+        player = input("Do you want to be Player X or Player O? (X goes first): ")
+        if player == "x" or player == "X":
+            player == x
+            return x
+        elif player == "o" or player == "O":
+            player == o
+            return o
+        else:
+            print("Invalid input. Please try again.\n")
+            
+            
+# Asks the user if they want to use alpha beta pruning or not
+# If I had more time I wanted to try to make more difficulties levels   
+def difficulty():
+	while True:
+		difficulty = input("What difficulty would you like to play at? (1-2): ")
+		if difficulty == "1":
+			alphaBeta = False
+			return alphaBeta
+		elif difficulty == "2":
+			alphaBeta = True
+			return alphaBeta
+		else:
+			print("Invalid input. Please try again.\n")
+
+
+
+if __name__ == "__main__":
+#-------------------------------------------------------------------------
+# A move is represented by a list of 4 elements, representing 2 pairs of
+# coordinates, (FromRow, FromCol) and (ToRow, ToCol), which represent the
+# positions of the piece to be moved, before and after the move.
+#-------------------------------------------------------------------------
+	x = -1
+	o = 1
+	Empty = 0
+	OutOfBounds = 2
+	NumRows = 5
+	BoardRows = NumRows + 1
+	NumCols = 4
+	BoardCols = NumCols + 1
+	MaxMoves = 4*NumCols
+	NumInPackedBoard = 4 * (BoardRows+1) *(BoardCols+1)
+	infinity = 10000  # Value of a winning board
+	MaxDepth = 7
+	Board = [[0 for col in range(BoardCols+1)] for row in range(BoardRows+1)]
+
+ 
+	numBoards = 0		# Counts the number of boards (states) evaluated
+	furthest_depth = 0	# Tracks the furthest depth reached			
+	oldBoards=[]		# List of old boards to prevent cycles
+
+	print("\nThe squares of the board are numbered by row and column, with '1 1' ")
+	print("in the upper left corner, '1 2' directly to the right of '1 1', etc.")
+	print("")
+	print("Moves are of the form 'i j m n', where (i,j) is a square occupied")
+	print("by your piece, and (m,n) is the square to which you move it.")
+	print("")
+	#print("You move the 'X' pieces.\n")
+
+	InitBoard(Board)
+	ShowBoard(Board)
+
+	player = player_X_or_O()	# Calls the function to allow the user to select X or O
+	turn = -1					# Determines whose turn it is, but flipping between 1 and -1
+	alphaBeta = difficulty()	# Calls the function to allow the user to select difficulty
+	print("Alpha Beta Pruning: ", alphaBeta) # Difficulty is whether or not to use alpha beta pruning
+
+	MoveList = GetMoves(x,Board)
+	print("\nList of Possible 'X' Moves: ", MoveList)
+	MoveList = GetMoves(o,Board)
+	print("List of Possible 'O' Moves: ", MoveList)
+	
+
+	while True:
+		# Check for a win
+		if Win(x, Board):
+			print("Player X wins!")
+			break
+		elif Win(o, Board):
+			print("Player O wins!")
+			break
+
+		# Makes all of the calls according to whose turn it is, and then flips the turn
+		# Human Turn 
+		if turn == player:
+      
+			# Gets the List of Possible Moves for x and o and prints them for the user
+			MoveList_X = GetMoves(x,Board)
+			MoveList_O = GetMoves(o,Board)
+			print("\nList of Possible 'X' Moves: ", MoveList_X)
+			print("\nList of Possible 'O' Moves: ", MoveList_O)
+			# Gets the human move and applies it to the board
+			Move = GetHumanMove(turn,Board)
+			Board = ApplyMove(Board,Move)
+			# Adds the board to the list of old boards, and then shows the board
+			oldBoards.append(Board)
+			ShowBoard(Board)
+			# Multiplies turn by -1 to flip the turn
+			turn *= -1
+
+		else:
+			# Times how long it takes the computer to make a decision
+			start_timer = time.time()
+			Move = GetComputerMove(turn,Board)
+			end_timer = time.time()
+			# Applies the move to the board
+			Board = ApplyMove(Board,Move)
+			# Adds the board to the list of old boards, and then shows the board
+			oldBoards.append(Board)
+			ShowBoard(Board)
+			# Prints the information related to the computer's decision
+			print("Number of States Evaluated: ", numBoards, "\nUsing Alpha Beta: ", alphaBeta, "\nTime to compute: ", round(end_timer - start_timer, 4), "s", "\nDepth: ", furthest_depth)
+			# Multiplies turn by -1 to flip the turn
+			turn *= -1
